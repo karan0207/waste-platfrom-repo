@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-  "node": ">=20.0.0"
-},
+    "node": ">=20.0.0"
+  },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --turbo",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@chainlink/contracts": "^1.2.0",
-    "@dimo-network/dimo-node-sdk": "^1.2.0",
+    "@dimo-network/data-sdk": "^1.2.5",
     "@ethsign/sp-sdk": "^0.7.2",
     "@google/generative-ai": "^0.17.1",
     "@layerzerolabs/lz-evm-oapp-v2": "^2.3.39",
