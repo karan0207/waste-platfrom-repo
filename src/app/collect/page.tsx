@@ -82,6 +82,7 @@ export default function CollectPage() {
     wasteTypeMatch: boolean;
     quantityMatch: boolean;
     confidence: number;
+    reasoning?: string;
   } | null>(null)
   const [reward, setReward] = useState<number | null>(null)
   const [verificationError, setVerificationError] = useState<string | null>(null)
@@ -204,20 +205,31 @@ export default function CollectPage() {
         },
       ]
 
-      const prompt = `You are an expert in waste management and recycling. Analyze this image and provide:
-        1. Confirm if the waste type matches: ${selectedTask.wasteType}
-        2. Estimate if the quantity matches: ${selectedTask.amount}
-        3. Your confidence level in this assessment (as a percentage)
+      // Enhanced prompt with stricter verification instructions
+      const prompt = `You are an expert in waste management and recycling verification. 
+        Analyze this image carefully and provide verification of waste collection claims:
+        
+        1. Does the waste in the image STRICTLY match this reported waste type: "${selectedTask.wasteType}"?
+           Be extremely precise - if the image shows any different type of waste, mark it as false.
+           
+        2. Does the quantity in the image appear to match the reported amount: "${selectedTask.amount}"?
+           
+        3. Provide your confidence level in this assessment (as a percentage)
+        
+        IMPORTANT: Be very strict with waste type matching. If the image shows waste that doesn't match 
+        the reported type (${selectedTask.wasteType}), you must mark wasteTypeMatch as false, 
+        regardless of confidence level.
         
         Respond ONLY in JSON format like this:
         {
           "wasteTypeMatch": true/false,
           "quantityMatch": true/false,
-          "confidence": confidence level as a number between 0 and 1
+          "confidence": confidence level as a number between 0 and 1,
+          "reasoning": "brief explanation of your decision"
         }`
 
       const generationConfig = {
-        temperature: 0.4,
+        temperature: 0.2, // Lower temperature for more consistent, stricter results
         topK: 32,
         topP: 0.95,
         maxOutputTokens: 2048,
@@ -259,10 +271,10 @@ export default function CollectPage() {
           setVerificationResult(parsedResult)
           setVerificationStatus('success')
           
-          // Make verification a bit more lenient to improve user experience
-          const isVerified = 
-            (parsedResult.wasteTypeMatch || parsedResult.confidence > 0.7) && 
-            (parsedResult.quantityMatch || parsedResult.confidence > 0.7)
+          // STRICTER VERIFICATION LOGIC:
+          // Now we REQUIRE that both waste type AND quantity match
+          // We don't bypass this check based on confidence
+          const isVerified = parsedResult.wasteTypeMatch && parsedResult.quantityMatch
           
           if (isVerified) {
             try {
@@ -272,10 +284,11 @@ export default function CollectPage() {
               // Then update task status
               await updateTaskStatus(selectedTask.id, 'verified', user.id)
               
-              // Calculate reward amount (more deterministic than random)
-              const baseReward = 20
-              const confidenceBonus = Math.floor(parsedResult.confidence * 30)
-              const earnedReward = baseReward + confidenceBonus
+              // Calculate reward based on accuracy and confidence
+              const baseReward = 15
+              const accuracyBonus = 10
+              const confidenceBonus = Math.floor(parsedResult.confidence * 5)
+              const earnedReward = baseReward + accuracyBonus + confidenceBonus
               
               // Save the reward
               await saveReward(user.id, earnedReward)
@@ -298,10 +311,12 @@ export default function CollectPage() {
               toast.error('Error saving verification results. Please try again.')
             }
           } else {
-            toast.error('Verification failed. The collected waste does not match the reported waste.', {
-              duration: 5000,
-              position: 'top-center',
-            })
+            // Don't show any alert - silently log the failure
+            console.log('Verification failed:',
+              !parsedResult.wasteTypeMatch ? 'Waste type mismatch' : '',
+              !parsedResult.quantityMatch ? 'Quantity mismatch' : '',
+              parsedResult.reasoning ? `Reasoning: ${parsedResult.reasoning}` : ''
+            )
           }
         } else {
           throw new Error('Invalid response structure from Gemini API')
@@ -333,14 +348,21 @@ export default function CollectPage() {
       return
     }
     
+    // Only allow manual verification with an image
+    if (!verificationImage) {
+      toast.error('Please upload an image of the collected waste before manual verification.')
+      return
+    }
+    
     setIsProcessing(true)
     try {
-      // Create a simple verification result
+      // Manual verification should still be strict
       const manualVerification = {
         wasteTypeMatch: true,
         quantityMatch: true,
-        confidence: 0.8,
-        manual: true
+        confidence: 0.7,
+        manual: true,
+        reasoning: "Manual verification by system administrator"
       }
       
       // Save the collected waste
@@ -350,7 +372,7 @@ export default function CollectPage() {
       await updateTaskStatus(selectedTask.id, 'verified', user.id)
       
       // Calculate reward (slightly lower for manual verification)
-      const earnedReward = 20
+      const earnedReward = 15
       
       // Save the reward
       await saveReward(user.id, earnedReward)
@@ -535,7 +557,10 @@ export default function CollectPage() {
               </div>
             ) : (
               <>
-                <p className="mb-4 text-sm text-gray-600">Upload a photo of the collected waste to verify and earn your reward.</p>
+                <p className="mb-4 text-sm text-gray-600">
+                  <strong>Important:</strong> Upload a photo of the collected waste to verify and earn your reward. 
+                  The waste type and quantity must match what was reported for successful verification.
+                </p>
                 <div className="mb-4">
                   <label htmlFor="verification-image" className="block text-sm font-medium text-gray-700 mb-2">
                     Upload Image
@@ -573,18 +598,9 @@ export default function CollectPage() {
                     ) : selectedTask.status === 'completed' ? 'Already Verified' : 'Verify Collection'}
                   </Button>
                 ) : (
-                  <Button
-                    onClick={handleManualVerify}
-                    className={`w-full ${selectedTask.status === 'completed' ? 'bg-gray-400' : 'bg-yellow-600 hover:bg-yellow-700'} text-white`}
-                    disabled={isProcessing || selectedTask.status === 'completed'}
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader className="animate-spin -ml-1 mr-3 h-5 w-5" />
-                        Processing...
-                      </>
-                    ) : selectedTask.status === 'completed' ? 'Already Verified' : 'Manual Verification (No Image)'}
-                  </Button>
+                  <div className="text-center p-4 bg-yellow-50 rounded-md border border-yellow-200">
+                    <p className="text-sm text-yellow-700">Please upload an image of the collected waste for verification.</p>
+                  </div>
                 )}
               </>
             )}
@@ -595,14 +611,23 @@ export default function CollectPage() {
                 <p className="text-sm">Waste Type Match: {verificationResult.wasteTypeMatch ? '✅ Yes' : '❌ No'}</p>
                 <p className="text-sm">Quantity Match: {verificationResult.quantityMatch ? '✅ Yes' : '❌ No'}</p>
                 <p className="text-sm">Confidence: {(verificationResult.confidence * 100).toFixed(2)}%</p>
+                {verificationResult.reasoning && (
+                  <p className="text-sm mt-2">AI Analysis: {verificationResult.reasoning}</p>
+                )}
                 {reward !== null && (
                   <p className="mt-2 text-green-700 font-medium">🎉 You earned {reward} tokens!</p>
                 )}
-                {/* Indicate that the task is now verified and can't be verified again */}
-                <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700">
-                  <CheckCircle className="inline-block mr-1 h-4 w-4" />
-                  This task is now verified and cannot be verified again.
-                </div>
+                {/* Additional verification status info */}
+                {verificationResult.wasteTypeMatch && verificationResult.quantityMatch ? (
+                  <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700">
+                    <CheckCircle className="inline-block mr-1 h-4 w-4" />
+                    This task is now verified and cannot be verified again.
+                  </div>
+                ) : (
+                  <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+                    <p>Verification failed. Please collect the correct waste type and quantity as assigned.</p>
+                  </div>
+                )}
               </div>
             )}
             
@@ -612,18 +637,29 @@ export default function CollectPage() {
                 {verificationError && (
                   <p className="mt-1 text-sm text-red-600">{verificationError}</p>
                 )}
-                <Button 
-                  onClick={handleManualVerify}
-                  className="mt-3 w-full bg-blue-600"
-                  disabled={isProcessing || selectedTask.status === 'verified'}
-                >
-                  {isProcessing ? (
-                    <>
-                      <Loader className="animate-spin -ml-1 mr-3 h-5 w-5" />
-                      Processing...
-                    </>
-                  ) : selectedTask.status === 'verified' ? 'Already Verified' : 'Try Manual Verification Instead'}
-                </Button>
+                <div className="mt-3 text-sm text-gray-600">
+                  <p className="font-medium">Verification Tips:</p>
+                  <ul className="list-disc pl-5 mt-1">
+                    <li>Make sure the image clearly shows the waste type</li>
+                    <li>Ensure good lighting and focus</li>
+                    <li>Make sure you've collected the exact waste type specified in the task</li>
+                    <li>Try to show the quantity accurately in the image</li>
+                  </ul>
+                </div>
+                {verificationImage && user?.email?.includes('admin') && (
+                  <Button 
+                    onClick={handleManualVerify}
+                    className="mt-3 w-full bg-blue-600"
+                    disabled={isProcessing || selectedTask.status === 'verified'}
+                  >
+                    {isProcessing ? (
+                      <>
+                        <Loader className="animate-spin -ml-1 mr-3 h-5 w-5" />
+                        Processing...
+                      </>
+                    ) : selectedTask.status === 'verified' ? 'Already Verified' : 'Admin Override: Manual Verification'}
+                  </Button>
+                )}
               </div>
             )}
             
@@ -659,6 +695,3 @@ function StatusBadge({ status }: { status: CollectionTask['status'] }) {
     </span>
   )
 }
-
-
-
