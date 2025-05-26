@@ -229,7 +229,7 @@ export default function Header({ onMenuClick, totalEarnings, id, sidebarOpen }: 
         window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
       };
     }
-  }, [userInfo]);
+  }, [userInfo, getUserBalance]);
 
   const login = async () => {
     if (!web3authRef.current) {
@@ -508,13 +508,7 @@ export default function Header({ onMenuClick, totalEarnings, id, sidebarOpen }: 
                 <div className="text-sm font-semibold text-gray-700 pb-2 mb-2 border-b border-gray-100 px-2">
                   {userInfo ? (userInfo.name.length > 20 ? userInfo.name.substring(0, 20) + '...' : userInfo.name) : "Account"}
                 </div>
-                <DropdownMenuItem 
-                  className="rounded-lg px-3 py-2 mb-1 hover:bg-green-50 focus:bg-green-50 cursor-pointer"
-                  onClick={getUserInfo}
-                >
-                  <User className="h-4 w-4 mr-2 text-gray-500" />
-                  Profile
-                </DropdownMenuItem>
+               
                 <DropdownMenuItem className="rounded-lg px-3 py-2 mb-1 hover:bg-green-50 focus:bg-green-50 cursor-pointer">
                   <Link href="/settings" className="flex items-center w-full">
                     <Settings className="h-4 w-4 mr-2 text-gray-500" />
