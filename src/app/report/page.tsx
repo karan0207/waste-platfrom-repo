@@ -1625,7 +1625,6 @@ export default function ReportPage() {
   const [newReport, setNewReport] = useState({
     location: '',
     type: '',
-    amount: '',
   })
 
   const [file, setFile] = useState<File | null>(null)
@@ -1708,7 +1707,6 @@ export default function ReportPage() {
       setNewReport({
         ...newReport,
         type: 'General Waste', // Default value
-        amount: '1 kg'         // Default value
       });
       
       // Create a standardized result for manual input
@@ -1716,10 +1714,10 @@ export default function ReportPage() {
         wasteType: 'General Waste',
         actualWasteType: 'General Waste',
         quantity: '1 kg',
+        summary: 'Manual waste classification',
         confidence: 1.0,
         matches: {
-          wasteTypeMatch: true,
-          quantityMatch: true
+          wasteTypeMatch: true
         },
         reasoning: "Manual classification applied by user"
       };
@@ -1779,8 +1777,7 @@ export default function ReportPage() {
       // Update the report form with the detected values
       setNewReport({
         ...newReport,
-        type: result.wasteType,
-        amount: result.quantity
+        type: result.wasteType
       });
       
     } catch (error: any) {
@@ -1804,7 +1801,7 @@ export default function ReportPage() {
       return;
     }
     
-    if (!newReport.location || !newReport.type || !newReport.amount) {
+    if (!newReport.location || !newReport.type) {
       toast.error('Please fill in all required fields.');
       return;
     }
@@ -1822,7 +1819,7 @@ export default function ReportPage() {
         user.id,
         newReport.location,
         newReport.type,
-        newReport.amount,
+        "N/A", // No amount field
         preview || undefined,
         JSON.stringify(metadata) // Store the full metadata
       );
@@ -1842,7 +1839,7 @@ export default function ReportPage() {
         id: report.id,
         location: report.location,
         wasteType: report.wasteType || newReport.type,
-        amount: report.amount || newReport.amount,
+        amount: report.amount || "N/A",
         createdAt: timestamp.toISOString().split('T')[0]
       };
       
@@ -1850,7 +1847,7 @@ export default function ReportPage() {
       setReports(prevReports => [formattedReport, ...prevReports]);
       
       // Reset form
-      setNewReport({ location: '', type: '', amount: '' });
+      setNewReport({ location: '', type: '' });
       setFile(null);
       setPreview(null);
       setVerificationStatus('idle');
@@ -2047,20 +2044,7 @@ export default function ReportPage() {
               readOnly={verificationStatus === 'success'}
             />
           </div>
-          <div className="md:col-span-2">
-            <label htmlFor="amount" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Estimated Amount</label>
-            <input
-              type="text"
-              id="amount"
-              name="amount"
-              value={newReport.amount}
-              onChange={handleInputChange}
-              required
-              className={`w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300 ${verificationStatus === 'success' ? 'bg-gray-100' : 'bg-white'}`}
-              placeholder="Estimated amount"
-              readOnly={verificationStatus === 'success'}
-            />
-          </div>
+
         </div>
         <Button 
           type="submit" 
@@ -2088,14 +2072,10 @@ export default function ReportPage() {
                   <MapPin className="w-4 h-4 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
                   <span className="text-sm text-gray-700 font-medium line-clamp-2">{report.location}</span>
                 </div>
-                <div className="ml-6 grid grid-cols-3 gap-2 text-xs text-gray-500">
+                <div className="ml-6 grid grid-cols-2 gap-2 text-xs text-gray-500">
                   <div>
                     <span className="block text-gray-400">Type</span>
                     {report.wasteType}
-                  </div>
-                  <div>
-                    <span className="block text-gray-400">Amount</span>
-                    {report.amount}
                   </div>
                   <div>
                     <span className="block text-gray-400">Date</span>
@@ -2121,7 +2101,6 @@ export default function ReportPage() {
                 <tr>
                   <th className="px-3 py-3 md:px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
                   <th className="px-3 py-3 md:px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                  <th className="px-3 py-3 md:px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                   <th className="px-3 py-3 md:px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                 </tr>
               </thead>
@@ -2135,7 +2114,6 @@ export default function ReportPage() {
                       </div>
                     </td>
                     <td className="px-3 py-3 md:px-6 md:py-4 text-xs md:text-sm text-gray-500">{report.wasteType}</td>
-                    <td className="px-3 py-3 md:px-6 md:py-4 text-xs md:text-sm text-gray-500">{report.amount}</td>
                     <td className="px-3 py-3 md:px-6 md:py-4 text-xs md:text-sm text-gray-500">{report.createdAt}</td>
                   </tr>
                 ))}

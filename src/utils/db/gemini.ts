@@ -7,11 +7,12 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/ge
 export interface WasteVerificationResult {
   wasteType: string;
   actualWasteType?: string;
-  quantity: string;
+  quantity: string;  // Keeping for backward compatibility
+  summary?: string;  // Added new field for waste configuration summary
   confidence: number;
   matches?: {
     wasteTypeMatch: boolean;
-    quantityMatch: boolean;
+    // quantityMatch removed as per requirements
   };
   reasoning?: string;
 }
@@ -138,7 +139,7 @@ export async function analyzeWasteImage(
       // Simple identification prompt for reporting
       prompt = `You are an expert in waste management and recycling. Analyze this image of waste and provide:
         1. The type of waste (e.g., plastic, paper, glass, metal, organic)
-        2. An estimate of the quantity or amount (in kg or liters)
+        2. A brief summary of the waste configuration/appearance
         3. Your confidence level in this assessment (as a percentage)
         
         BE CONSISTENT AND PRECISE in your classification. Use general categories first, then specifics.
@@ -147,7 +148,8 @@ export async function analyzeWasteImage(
         {
           "wasteType": "type of waste",
           "actualWasteType": "general category (plastic, paper, glass, metal, organic, mixed)",
-          "quantity": "estimated quantity with unit",
+          "quantity": "placeholder value",
+          "summary": "brief description of waste configuration and appearance",
           "confidence": confidence level as a number between 0 and 1
         }`;
     } else if (options.mode === 'collect' || options.mode === 'verify') {
@@ -159,7 +161,7 @@ export async function analyzeWasteImage(
            ${options.strictMode ? 'Be STRICT in your verification. If the waste does not exactly match the reported type, mark it as false.' 
                                : 'Allow reasonable flexibility in matching similar waste types.'}
            
-        2. Does the quantity in the image appear to match the reported amount: "${options.expectedQuantity || 'Not specified'}"?
+        2. Provide a brief summary of the waste configuration and appearance
            
         3. Provide your confidence level in this assessment (as a percentage)
         
@@ -169,11 +171,11 @@ export async function analyzeWasteImage(
         {
           "wasteType": "detailed description of waste type identified",
           "actualWasteType": "general category (plastic, paper, glass, metal, organic, mixed)",
-          "quantity": "estimated quantity with unit",
+          "quantity": "placeholder value",
+          "summary": "brief description of waste configuration and appearance",
           "confidence": confidence level as a number between 0 and 1,
           "matches": {
-            "wasteTypeMatch": true/false,
-            "quantityMatch": true/false
+            "wasteTypeMatch": true/false
           },
           "reasoning": "brief explanation of your decision, especially if there's a mismatch"
         }`;
@@ -215,8 +217,7 @@ export async function analyzeWasteImage(
     // For reporting mode, add placeholder matches to maintain consistency
     if (options.mode === 'report' && !parsedResult.matches) {
       parsedResult.matches = {
-        wasteTypeMatch: true,
-        quantityMatch: true
+        wasteTypeMatch: true
       };
     }
     

@@ -30,6 +30,7 @@ export default function RewardsPage() {
   const [rewards, setRewards] = useState<Reward[]>([])
   const [loading, setLoading] = useState(true)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [processingRewardId, setProcessingRewardId] = useState<number | null>(null)
 
   const fetchUserDataAndRewards = async () => {
     setLoading(true)
@@ -114,6 +115,7 @@ export default function RewardsPage() {
 
     try {
       setIsProcessing(true)
+      setProcessingRewardId(rewardId)
 
       // Update database
       const redemptionResult = await redeemReward(user.id, rewardId)
@@ -158,6 +160,7 @@ export default function RewardsPage() {
       toast.error('Failed to redeem reward. Please try again.')
     } finally {
       setIsProcessing(false)
+      setProcessingRewardId(null)
     }
   }
 
@@ -179,6 +182,7 @@ export default function RewardsPage() {
 
     try {
       setIsProcessing(true)
+      setProcessingRewardId(0) // Use 0 for "redeem all"
       
       // Update database
       const redemptionResult = await redeemReward(user.id, 0)
@@ -223,6 +227,7 @@ export default function RewardsPage() {
       toast.error('Failed to redeem all points. Please try again.')
     } finally {
       setIsProcessing(false)
+      setProcessingRewardId(null)
     }
   }
 
@@ -236,6 +241,17 @@ export default function RewardsPage() {
       </div>
     )
   }
+
+  // Create a consolidated rewards list with both individual rewards and the generic redeem option
+  const displayRewards = rewards.length > 0 
+    ? rewards 
+    : (balance > 0 ? [{ 
+        id: 0, 
+        name: 'Redeem All Points', 
+        cost: balance,
+        description: 'Convert all your eco-points to environmental benefits and rewards',
+        collectionInfo: 'Available for immediate redemption'
+      }] : []);
 
   return (
     <div className="p-4 sm:p-6 md:p-8 max-w-6xl mx-auto">
@@ -355,51 +371,31 @@ export default function RewardsPage() {
         {/* Available Rewards */}
         <div>
           <h2 className="text-xl font-semibold mb-4 text-gray-800">Available Rewards</h2>
-          <div className="space-y-4">
-            {/* Redeem All Points Card */}
-            {balance > 0 && (
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-5 rounded-xl shadow-sm border border-green-100 relative overflow-hidden">
-                <div className="absolute bottom-0 right-0 opacity-10">
-                  <Gift className="w-24 h-24 -mb-6 -mr-6" />
-                </div>
-                
-                <div className="flex justify-between items-center mb-3">
-                  <h3 className="text-lg font-semibold text-gray-800">Redeem All Points</h3>
-                  <div className="flex items-center bg-white px-3 py-1 rounded-full shadow-sm">
-                    <Coins className="w-4 h-4 text-green-500 mr-1" />
-                    <span className="text-green-600 font-semibold">{balance} points</span>
-                  </div>
-                </div>
-                <p className="text-gray-600 text-sm mb-4">Convert all your eco-points to environmental benefits and rewards</p>
-                
-                <Button 
-                  onClick={handleRedeemAllPoints}
-                  className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-sm"
-                  disabled={balance === 0 || isProcessing}
+          
+          {displayRewards.length > 0 ? (
+            <div className="space-y-4">
+              {displayRewards.map(reward => (
+                <div 
+                  key={reward.id} 
+                  className={`${reward.id === 0 
+                    ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-100' 
+                    : 'bg-white border-gray-100'} 
+                    p-5 rounded-xl shadow-sm border transition-all duration-200 hover:shadow-md relative overflow-hidden`}
                 >
-                  {isProcessing ? (
-                    <>
-                      <Loader className="w-4 h-4 mr-2 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <Gift className="w-4 h-4 mr-2" />
-                      Redeem All Points
-                    </>
+                  {reward.id === 0 && (
+                    <div className="absolute bottom-0 right-0 opacity-10">
+                      <Gift className="w-24 h-24 -mb-6 -mr-6" />
+                    </div>
                   )}
-                </Button>
-              </div>
-            )}
-            
-            {/* Rewards List */}
-            {rewards.length > 0 ? (
-              rewards.map(reward => (
-                <div key={reward.id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 transition-all duration-200 hover:shadow-md">
+                  
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex items-start">
-                      <div className="bg-green-100 p-2 rounded-lg mr-3">
-                        <Award className="w-5 h-5 text-green-600" />
+                      <div className={`${reward.id === 0 ? 'bg-green-200' : 'bg-green-100'} p-2 rounded-lg mr-3`}>
+                        {reward.id === 0 ? (
+                          <Gift className="w-5 h-5 text-green-600" />
+                        ) : (
+                          <Award className="w-5 h-5 text-green-600" />
+                        )}
                       </div>
                       <h3 className="text-lg font-semibold text-gray-800">{reward.name}</h3>
                     </div>
@@ -416,7 +412,7 @@ export default function RewardsPage() {
                   </p>
                   
                   <Button 
-                    onClick={() => handleRedeemReward(reward.id)}
+                    onClick={() => reward.id === 0 ? handleRedeemAllPoints() : handleRedeemReward(reward.id)}
                     className={`w-full ${
                       balance >= reward.cost 
                         ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white' 
@@ -424,7 +420,7 @@ export default function RewardsPage() {
                     }`}
                     disabled={balance < reward.cost || isProcessing}
                   >
-                    {isProcessing ? (
+                    {isProcessing && processingRewardId === reward.id ? (
                       <>
                         <Loader className="w-4 h-4 mr-2 animate-spin" />
                         Processing...
@@ -442,24 +438,24 @@ export default function RewardsPage() {
                     )}
                   </Button>
                 </div>
-              ))
-            ) : (
-              <div className="bg-white border border-gray-200 p-6 rounded-xl text-center">
-                <div className="bg-yellow-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <AlertCircle className="h-8 w-8 text-yellow-500" />
-                </div>
-                <h3 className="text-lg font-medium text-gray-800 mb-2">No Rewards Available</h3>
-                <p className="text-gray-600 mb-4">Check back soon for new reward opportunities</p>
-                <Button 
-                  variant="outline" 
-                  className="border-yellow-200 text-yellow-700 hover:bg-yellow-50"
-                  onClick={() => fetchUserDataAndRewards()}
-                >
-                  Refresh Rewards
-                </Button>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white border border-gray-200 p-6 rounded-xl text-center">
+              <div className="bg-yellow-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="h-8 w-8 text-yellow-500" />
               </div>
-            )}
-          </div>
+              <h3 className="text-lg font-medium text-gray-800 mb-2">No Rewards Available</h3>
+              <p className="text-gray-600 mb-4">Check back soon for new reward opportunities</p>
+              <Button 
+                variant="outline" 
+                className="border-yellow-200 text-yellow-700 hover:bg-yellow-50"
+                onClick={() => fetchUserDataAndRewards()}
+              >
+                Refresh Rewards
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>

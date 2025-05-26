@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai"
 import { toast } from 'react-hot-toast'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { WasteVerificationResult } from '@/utils/db/gemini'
 
 // Make sure to set your Gemini API key in your environment variables
 const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY
@@ -15,17 +16,7 @@ export default function VerifyWastePage() {
   const [verificationStatus, setVerificationStatus] = useState<'idle' | 'verifying' | 'success' | 'failure'>('idle')
   const [expectedWaste, setExpectedWaste] = useState<string>('')
   const [expectedQuantity, setExpectedQuantity] = useState<string>('')
-  const [verificationResult, setVerificationResult] = useState<{
-    wasteType: string;
-    actualWasteType?: string;
-    quantity: string;
-    confidence: number;
-    matches?: {
-      wasteTypeMatch: boolean;
-      quantityMatch: boolean;
-    };
-    reasoning?: string;
-  } | null>(null)
+  const [verificationResult, setVerificationResult] = useState<WasteVerificationResult | null>(null)
   const [verificationError, setVerificationError] = useState<string | null>(null)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
   const [strictMode, setStrictMode] = useState(true)
@@ -203,11 +194,11 @@ export default function VerifyWastePage() {
       // Enhanced prompt that includes expected waste type verification
       const prompt = `You are an expert in waste management and recycling. Analyze this image of waste and provide:
         1. The type of waste you can identify in the image (e.g., plastic, paper, glass, metal, organic, mixed)
-        2. An estimate of the quantity or amount (in kg or liters)
+        2. A brief summary of the waste configuration and appearance
         3. Your confidence level in this assessment (as a percentage)
         
-        Additionally, compare with the reported waste type: "${expectedWaste}" and quantity: "${expectedQuantity || 'Not specified'}"
-        and determine if they match what's shown in the image.
+        Additionally, compare with the reported waste type: "${expectedWaste}"
+        and determine if it matches what's shown in the image.
         
         ${strictMode ? 'Be STRICT in your verification. If the waste type in the image is different than reported, it should fail verification.' : 'Be reasonable in your verification, allowing some flexibility if the waste is similar but not exactly as reported.'}
         
@@ -215,11 +206,11 @@ export default function VerifyWastePage() {
         {
           "wasteType": "detailed description of waste type identified",
           "actualWasteType": "concise general category (e.g., plastic, paper, organic)",
-          "quantity": "estimated quantity with unit",
+          "quantity": "placeholder value",
+          "summary": "brief description of waste configuration and appearance",
           "confidence": confidence level as a number between 0 and 1,
           "matches": {
-            "wasteTypeMatch": true/false,
-            "quantityMatch": true/false
+            "wasteTypeMatch": true/false
           },
           "reasoning": "brief explanation of your decision, especially if there's a mismatch"
         }`
@@ -260,7 +251,12 @@ export default function VerifyWastePage() {
         
         const parsedResult = JSON.parse(jsonText)
         
-        if (parsedResult.wasteType && parsedResult.quantity && parsedResult.confidence !== undefined) {
+        if (parsedResult.wasteType && parsedResult.confidence !== undefined) {
+          // Ensure the result matches our interface
+          if (!parsedResult.summary && parsedResult.quantity) {
+            parsedResult.summary = `Waste appearance: about ${parsedResult.quantity}`;
+          }
+          
           setVerificationResult(parsedResult)
           setVerificationStatus('success')
           
@@ -305,10 +301,10 @@ export default function VerifyWastePage() {
       wasteType: expectedWaste || 'Unspecified waste',
       actualWasteType: expectedWaste || 'Unspecified waste',
       quantity: expectedQuantity || '1-2 kg',
+      summary: "Manually classified waste configuration",
       confidence: 0.7,
       matches: {
-        wasteTypeMatch: true,
-        quantityMatch: true
+        wasteTypeMatch: true
       },
       reasoning: "Manual classification applied - no AI verification performed"
     })
@@ -338,19 +334,7 @@ export default function VerifyWastePage() {
           />
         </div>
         
-        <div className="mb-4">
-          <label htmlFor="expected-quantity" className="block text-sm font-medium text-gray-700 mb-1">
-            Expected Quantity (optional)
-          </label>
-          <input
-            id="expected-quantity"
-            type="text"
-            className="w-full p-2 border border-gray-300 rounded-md"
-            placeholder="e.g. 2.5 kg, 5 liters, 3 bags"
-            value={expectedQuantity}
-            onChange={(e) => setExpectedQuantity(e.target.value)}
-          />
-        </div>
+
         
         <div className="mb-4 flex items-center">
           <button 
@@ -540,7 +524,7 @@ export default function VerifyWastePage() {
               <div className="mt-2 text-sm text-gray-700">
                 <p><strong>Expected Waste Type:</strong> {expectedWaste}</p>
                 <p><strong>Detected Waste Type:</strong> {verificationResult.wasteType}</p>
-                <p><strong>Estimated Quantity:</strong> {verificationResult.quantity}</p>
+                <p><strong>Configuration:</strong> {verificationResult.summary || "Not provided"}</p>
                 <p><strong>Confidence:</strong> {(verificationResult.confidence * 100).toFixed(2)}%</p>
                 
                 {verificationResult.matches && (
@@ -548,11 +532,6 @@ export default function VerifyWastePage() {
                     <p className={verificationResult.matches.wasteTypeMatch ? 'text-green-600' : 'text-red-600'}>
                       Waste Type Match: {verificationResult.matches.wasteTypeMatch ? '✓ Yes' : '✗ No'}
                     </p>
-                    {expectedQuantity && (
-                      <p className={verificationResult.matches.quantityMatch ? 'text-green-600' : 'text-red-600'}>
-                        Quantity Match: {verificationResult.matches.quantityMatch ? '✓ Yes' : '✗ No'}
-                      </p>
-                    )}
                   </div>
                 )}
                 

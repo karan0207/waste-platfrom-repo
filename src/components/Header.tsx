@@ -16,6 +16,7 @@ import { Web3Auth } from "@web3auth/modal"
 import { CHAIN_NAMESPACES, IProvider, WEB3AUTH_NETWORK, WALLET_ADAPTERS } from "@web3auth/base"
 import { EthereumPrivateKeyProvider } from "@web3auth/ethereum-provider"
 import { createUser, getUnreadNotifications, markNotificationAsRead, getUserByEmail, getUserBalance } from "@/utils/db/actions"
+import { toast } from 'react-hot-toast'
 
 // Define the Notification interface
 interface Notification {
@@ -71,12 +72,22 @@ export default function Header({ onMenuClick, totalEarnings, id, sidebarOpen }: 
   const isMobile = mounted ? isMobileState : false
   const isSmallMobile = mounted ? isSmallMobileState : false
 
+  // Lazy initialization of Web3Auth - this runs only once when component mounts
   useEffect(() => {
     if (!mounted) return;
     
-    const init = async () => {
-      try {
-        if (!web3authRef.current) {
+    // Set a timeout to initialize Web3Auth after component renders
+    // This prevents blocking the initial UI rendering
+    const timeoutId = setTimeout(() => {
+      const init = async () => {
+        try {
+          // Skip initialization if already done
+          if (web3authRef.current) {
+            setLoading(false);
+            return;
+          }
+          
+          console.log("Initializing Web3Auth...");
           const clientId = "BNz8NqlHT2yX1gsavBFtTLm74eHw03HkL0Vdri6wFnUpRLxKGS4kgtIGshQUDJJn_qPJBlzpbVomgx43B_WHX0g";
 
           const chainConfig = {
@@ -103,11 +114,9 @@ export default function Header({ onMenuClick, totalEarnings, id, sidebarOpen }: 
               mode: "dark",
               loginMethodsOrder: ["google", "facebook", "twitter", "apple", "email_passwordless"]
             },
-            enableLogging: true,
-            // Add origin configuration to handle COOP policy issues
-            storageKey: "waste-management-platform", // Add a unique storage key
+            enableLogging: false, // Disable logging in production
+            storageKey: "waste-management-platform",
             sessionTime: 86400, // 24 hour in seconds
-            // Add whitelisted origins - include both local and Vercel domains
             whiteLabel: {
               name: "EcoCollect",
               defaultLanguage: "en",
@@ -116,63 +125,82 @@ export default function Header({ onMenuClick, totalEarnings, id, sidebarOpen }: 
           });
 
           web3authRef.current = web3auth;
-        }
-
-        // Initialize the modal with popup configurations
-        await web3authRef.current.initModal({
-          modalConfig: {
-            [WALLET_ADAPTERS.OPENLOGIN]: {
-              label: "openlogin",
-              loginMethods: {
-                google: {
-                  name: "Google",
-                  showOnModal: true
-                },
-                facebook: {
-                  name: "Facebook",
-                  showOnModal: true
-                },
-                twitter: {
-                  name: "Twitter",
-                  showOnModal: true
-                },
-                email_passwordless: {
-                  name: "Email",
-                  showOnModal: true
-                }
-              },
-              // This setting helps with cross-origin issues
-              showOnDesktop: true,
-              showOnMobile: true
-            }
-          }
-        });
-        
-        setIsWeb3AuthReady(true);
-        
-        if (web3authRef.current.connected) {
-          setLoggedIn(true);
-          setProvider(web3authRef.current.provider);
-          const user = await web3authRef.current.getUserInfo();
-          setUserInfo(user);
           
-          if (user.email) {
-            localStorage.setItem('userEmail', user.email);
+          // Set a timeout for initializing the modal to prevent long blocking operations
+          const modalInitTimeout = setTimeout(async () => {
             try {
-              await createUser(user.email, user.name || 'Anonymous User');
-            } catch (error) {
-              console.error("Error creating user:", error);
+              // Initialize the modal with popup configurations
+              await web3authRef.current.initModal({
+                modalConfig: {
+                  [WALLET_ADAPTERS.OPENLOGIN]: {
+                    label: "openlogin",
+                    loginMethods: {
+                      google: {
+                        name: "Google",
+                        showOnModal: true
+                      },
+                      facebook: {
+                        name: "Facebook",
+                        showOnModal: true
+                      },
+                      twitter: {
+                        name: "Twitter",
+                        showOnModal: true
+                      },
+                      email_passwordless: {
+                        name: "Email",
+                        showOnModal: true
+                      }
+                    },
+                    showOnDesktop: true,
+                    showOnMobile: true
+                  }
+                }
+              });
+              
+              setIsWeb3AuthReady(true);
+              console.log("Web3Auth modal initialized");
+              
+              // Check if already connected
+              if (web3authRef.current.connected) {
+                setLoggedIn(true);
+                setProvider(web3authRef.current.provider);
+                
+                try {
+                  const user = await web3authRef.current.getUserInfo();
+                  setUserInfo(user);
+                  
+                  if (user.email) {
+                    localStorage.setItem('userEmail', user.email);
+                    try {
+                      await createUser(user.email, user.name || 'Anonymous User');
+                    } catch (error) {
+                      console.error("Error creating user:", error);
+                    }
+                  }
+                } catch (err) {
+                  console.error("Error getting user info:", err);
+                }
+              }
+            } catch (err) {
+              console.error("Error initializing Web3Auth modal:", err);
+            } finally {
+              // Always set loading to false, even if initialization fails
+              setLoading(false);
             }
-          }
+          }, 500); // 500ms delay for modal initialization
+          
+          return () => clearTimeout(modalInitTimeout);
+        } catch (error) {
+          console.error("Error setting up Web3Auth:", error);
+          setLoading(false);
         }
-      } catch (error) {
-        console.error("Error initializing Web3Auth:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+      };
 
-    init();
+      init();
+    }, 100); // 100ms delay to ensure component renders first
+    
+    return () => clearTimeout(timeoutId);
   }, [mounted]);
 
   useEffect(() => {
@@ -232,73 +260,90 @@ export default function Header({ onMenuClick, totalEarnings, id, sidebarOpen }: 
   }, [userInfo, getUserBalance]);
 
   const login = async () => {
-    if (!web3authRef.current) {
-      console.log("web3auth not initialized yet");
-      return;
-    }
-    
-    if (!isWeb3AuthReady) {
-      console.log("web3auth modal not initialized yet, initializing now");
-      try {
-        await web3authRef.current.initModal({
-          modalConfig: {
-            [WALLET_ADAPTERS.OPENLOGIN]: {
-              label: "openlogin",
-              loginMethods: {
-                google: {
-                  name: "Google",
-                  showOnModal: true
-                },
-                facebook: {
-                  name: "Facebook",
-                  showOnModal: true
-                },
-                twitter: {
-                  name: "Twitter",
-                  showOnModal: true
-                },
-                email_passwordless: {
-                  name: "Email",
-                  showOnModal: true
-                }
-              },
-              showOnDesktop: true,
-              showOnMobile: true
-            }
-          }
-        });
-        setIsWeb3AuthReady(true);
-      } catch (error) {
-        console.error("Error initializing Web3Auth modal:", error);
-        return;
-      }
-    }
+    // Show loading state while trying to login
+    setLoading(true);
     
     try {
-      console.log("Attempting to connect with Web3Auth...");
+      if (!web3authRef.current) {
+        console.log("Web3Auth not initialized yet, initializing now");
+        
+        // Create a simplified version for login only
+        const clientId = "BNz8NqlHT2yX1gsavBFtTLm74eHw03HkL0Vdri6wFnUpRLxKGS4kgtIGshQUDJJn_qPJBlzpbVomgx43B_WHX0g";
+        const chainConfig = {
+          chainNamespace: CHAIN_NAMESPACES.EIP155,
+          chainId: "0xaa36a7",
+          rpcTarget: "https://ethereum-sepolia.publicnode.com",
+        };
+
+        const privateKeyProvider = new EthereumPrivateKeyProvider({
+          config: { chainConfig },
+        });
+
+        const web3auth = new Web3Auth({
+          clientId,
+          web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_DEVNET,
+          privateKeyProvider,
+          uiConfig: {
+            appName: "EcoCollect",
+            mode: "dark",
+            loginMethodsOrder: ["google", "facebook", "twitter", "email_passwordless"]
+          },
+          enableLogging: false,
+          storageKey: "waste-management-platform",
+        });
+
+        web3authRef.current = web3auth;
+      }
+      
+      if (!isWeb3AuthReady) {
+        console.log("Web3Auth modal not initialized yet, initializing now");
+        try {
+          await web3authRef.current.initModal({
+            modalConfig: {
+              [WALLET_ADAPTERS.OPENLOGIN]: {
+                label: "openlogin",
+                loginMethods: {
+                  google: { name: "Google", showOnModal: true },
+                  facebook: { name: "Facebook", showOnModal: true },
+                  twitter: { name: "Twitter", showOnModal: true },
+                  email_passwordless: { name: "Email", showOnModal: true }
+                },
+                showOnDesktop: true,
+                showOnMobile: true
+              }
+            }
+          });
+          setIsWeb3AuthReady(true);
+        } catch (error) {
+          console.error("Error initializing Web3Auth modal:", error);
+          toast.error("Error setting up login. Please try again later.");
+          setLoading(false);
+          return;
+        }
+      }
+      
       const web3authProvider = await web3authRef.current.connect();
-      console.log("Connection successful, setting provider");
       setProvider(web3authProvider);
       setLoggedIn(true);
       
-      console.log("Getting user info");
       const user = await web3authRef.current.getUserInfo();
-      console.log("User info retrieved:", user);
       setUserInfo(user);
       
       if (user.email) {
         localStorage.setItem('userEmail', user.email);
         try {
-          console.log("Creating or updating user in database");
           await createUser(user.email, user.name || 'Anonymous User');
         } catch (error) {
           console.error("Error creating user:", error);
         }
       }
+      
+      toast.success("Login successful!");
     } catch (error) {
       console.error("Error during login:", error);
-      // Show a user-friendly error message
-      alert("Login failed. Please try again or use a different login method.");
+      toast.error("Login failed. Please try again or use a different method.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -364,16 +409,8 @@ export default function Header({ onMenuClick, totalEarnings, id, sidebarOpen }: 
     setShowSearchMobile(!showSearchMobile);
   };
 
-  if (loading) {
-    return (
-      <div className="p-3 sm:p-4 flex items-center justify-center bg-gradient-to-r from-green-50 to-emerald-50 shadow-sm">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-green-500 mx-auto mb-2"></div>
-          <div className="text-sm sm:text-base text-green-700">Loading Web3Auth...</div>
-        </div>
-      </div>
-    );
-  }
+  // Instead of returning a loading state, we'll render the header with a skeleton UI
+  // This allows the header to be visible immediately while Web3Auth loads in the background
 
   return (
     <header id={id} className="bg-white sticky top-0 z-50 shadow-sm">
@@ -485,11 +522,21 @@ export default function Header({ onMenuClick, totalEarnings, id, sidebarOpen }: 
           {/* Login/User menu */}
           {!loggedIn ? (
             <Button 
-              onClick={login} 
+              onClick={login}
+              disabled={loading}
               className="bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white text-xs sm:text-sm md:text-base px-3 sm:px-4 py-1 h-auto rounded-full shadow-sm transition-all duration-200"
             >
-              {isSmallMobile ? '' : 'Login'}
-              <LogIn className="ml-0 sm:ml-1 md:ml-2 h-4 w-4 md:h-5 md:w-5" />
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-1"></div>
+                  {!isSmallMobile && 'Connecting...'}
+                </>
+              ) : (
+                <>
+                  {isSmallMobile ? '' : 'Login'}
+                  <LogIn className="ml-0 sm:ml-1 md:ml-2 h-4 w-4 md:h-5 md:w-5" />
+                </>
+              )}
             </Button>
           ) : (
             <DropdownMenu>
