@@ -717,6 +717,206 @@ we still have 2 button see,
 
 _**Assistant**_
 
+I see the issue now. Looking at the screenshot, I can see there are still two "Redeem Reward" buttons showing up in the rewards page. Let me fix that more comprehensively.
+
+---
+
+```diff
+    const [loading, setLoading] = useState(true)
+    const [isProcessing, setIsProcessing] = useState(false)
++   const [processingRewardId, setProcessingRewardId] = useState<number | null>(null)
+  
+    const fetchUserDataAndRewards = async () => {
+```
+
+```diff
+      try {
+        setIsProcessing(true)
++       setProcessingRewardId(rewardId)
+  
+        // Update database
+```
+
+```diff
+      } finally {
+        setIsProcessing(false)
++       setProcessingRewardId(null)
+      }
+    }
+```
+
+```diff
+      try {
+        setIsProcessing(true)
++       setProcessingRewardId(0) // Use 0 for "redeem all"
+        
+        // Update database
+```
+
+```diff
+      } finally {
+        setIsProcessing(false)
++       setProcessingRewardId(null)
+      }
+    }
+```
+
+```diff
+    }
+  
++   // Create a consolidated rewards list with both individual rewards and the generic redeem option
++   const displayRewards = rewards.length > 0 
++     ? rewards 
++     : (balance > 0 ? [{ 
++         id: 0, 
++         name: 'Redeem All Points', 
++         cost: balance,
++         description: 'Convert all your eco-points to environmental benefits and rewards',
++         collectionInfo: 'Available for immediate redemption'
++       }] : []);
++ 
+    return (
+      <div className="p-4 sm:p-6 md:p-8 max-w-6xl mx-auto">
+```
+
+```diff
+          <div>
+            <h2 className="text-xl font-semibold mb-4 text-gray-800">Available Rewards</h2>
++           
++           {displayRewards.length > 0 ? (
+              <div className="space-y-4">
+-             {/* Redeem All Points Card - Only show if there are no individual rewards */}
+-             {balance > 0 && rewards.length === 0 && (
+-               <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-5 rounded-xl shadow-sm border border-green-100 relative overflow-hidden">
++               {displayRewards.map(reward => (
++                 <div 
++                   key={reward.id} 
++                   className={`${reward.id === 0 
++                     ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-100' 
++                     : 'bg-white border-gray-100'} 
++                     p-5 rounded-xl shadow-sm border transition-all duration-200 hover:shadow-md relative overflow-hidden`}
++                 >
++                   {reward.id === 0 && (
+                      <div className="absolute bottom-0 right-0 opacity-10">
+                        <Gift className="w-24 h-24 -mb-6 -mr-6" />
+-                 </div>
+-                 
+-                 <div className="flex justify-between items-center mb-3">
+-                   <h3 className="text-lg font-semibold text-gray-800">Redeem All Points</h3>
+-                   <div className="flex items-center bg-white px-3 py-1 rounded-full shadow-sm">
+-                     <Coins className="w-4 h-4 text-green-500 mr-1" />
+-                     <span className="text-green-600 font-semibold">{balance} points</span>
+-                   </div>
+-                 </div>
+-                 <p className="text-gray-600 text-sm mb-4">Convert all your eco-points to environmental benefits and rewards</p>
+-                 
+-                 <Button 
+-                   onClick={handleRedeemAllPoints}
+-                   className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-sm"
+-                   disabled={balance === 0 || isProcessing}
+-                 >
+-                   {isProcessing ? (
+-                     <>
+-                       <Loader className="w-4 h-4 mr-2 animate-spin" />
+-                       Processing...
+-                     </>
+-                   ) : (
+-                     <>
+-                       <Gift className="w-4 h-4 mr-2" />
+-                       Redeem All Points
+-                     </>
+-                   )}
+-                 </Button>
+                      </div>
+                    )}
+                    
+-             {/* Rewards List */}
+-             {rewards.length > 0 ? (
+-               rewards.map(reward => (
+-                 <div key={reward.id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 transition-all duration-200 hover:shadow-md">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex items-start">
+-                       <div className="bg-green-100 p-2 rounded-lg mr-3">
++                       <div className={`${reward.id === 0 ? 'bg-green-200' : 'bg-green-100'} p-2 rounded-lg mr-3`}>
++                         {reward.id === 0 ? (
++                           <Gift className="w-5 h-5 text-green-600" />
++                         ) : (
+                            <Award className="w-5 h-5 text-green-600" />
++                         )}
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-800">{reward.name}</h3>
+```
+
+```diff
+                    
+                    <Button 
+-                     onClick={() => handleRedeemReward(reward.id)}
++                     onClick={() => reward.id === 0 ? handleRedeemAllPoints() : handleRedeemReward(reward.id)}
+                      className={`w-full ${
+                        balance >= reward.cost 
+```
+
+```diff
+                      disabled={balance < reward.cost || isProcessing}
+                    >
+-                     {isProcessing ? (
++                     {isProcessing && processingRewardId === reward.id ? (
+                        <>
+                          <Loader className="w-4 h-4 mr-2 animate-spin" />
+```
+
+```diff
+                    </Button>
+                  </div>
+-               ))
++               ))}
++             </div>
+            ) : (
+              <div className="bg-white border border-gray-200 p-6 rounded-xl text-center">
+```
+
+```diff
+              </div>
+            )}
+-           </div>
+          </div>
+        </div>
+```
+
+---
+
+I've completely redesigned the rewards component to fix the issue with multiple redeem buttons. Here's what the changes do:
+
+1. **Consolidated Rewards Display**:
+   - Created a single unified list of rewards called `displayRewards`
+   - When there are specific rewards available, it shows those
+   - When there are no specific rewards but the user has points, it shows a single "Redeem All Points" option
+
+2. **Improved Button State Management**:
+   - Added a `processingRewardId` state to track which specific reward is being processed
+   - This ensures the loading spinner only appears on the button that was clicked
+
+3. **Consistent UI**:
+   - Used conditional styling to make the "Redeem All Points" option visually distinct
+   - All rewards now use the same component structure and styling pattern
+
+4. **Better User Experience**:
+   - The user will now only ever see one redemption option for each reward
+   - The button text is always "Redeem Reward" for consistency
+   - Processing states are properly tracked per reward
+
+This fix ensures there's only one redeem button per reward item, and the UI is cleaner and more consistent.
+
+---
+
+_**User**_
+
+when collection is successfull I want to send an email with this report 
+
+---
+
+_**Assistant**_
+
 
 
 ---

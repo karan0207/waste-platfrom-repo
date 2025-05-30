@@ -3152,6 +3152,13 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-8.10.66.tgz#dd035d409df322acc83dff62a602f12a5783bbb3"
   integrity sha512-tktOkFUA4kXx2hhhrB8bIFb5TbwzS4uOhKEmwiD+NoiL0qtP2OQ9mFldbgD4dV1djrlBYP6eBuQZiWjuHUpqFw==
 
+"@types/nodemailer@^6.4.17":
+  version "6.4.17"
+  resolved "https://registry.yarnpkg.com/@types/nodemailer/-/nodemailer-6.4.17.tgz#5c82a42aee16a3dd6ea31446a1bd6a447f1ac1a4"
+  integrity sha512-I9CCaIp6DTldEg7vyUTZi8+9Vo0hi1/T8gv3C89yk1rSAAzoKQ8H8ki/jBYJSFoH/BisgLP8tkZMlQ91CIquww==
+  dependencies:
+    "@types/node" "*"
+
 "@types/pbkdf2@^3.0.0":
   version "3.1.2"
   resolved "https://registry.npmjs.org/@types/pbkdf2/-/pbkdf2-3.1.2.tgz"
@@ -6687,6 +6694,11 @@ node-gyp-build@^4.2.0:
   version "4.8.2"
   resolved "https://registry.npmjs.org/node-gyp-build/-/node-gyp-build-4.8.2.tgz"
   integrity sha512-IRUxE4BVsHWXkV/SFOut4qTlagw2aM8T5/vnTsmrHJvVoKueJHRc/JaFND7QDDc61kLYUJ6qlZM3sqTSyx2dTw==
+
+nodemailer@^7.0.3:
+  version "7.0.3"
+  resolved "https://registry.yarnpkg.com/nodemailer/-/nodemailer-7.0.3.tgz#c098ce79ac60c7c111a86949eed2f99bd00cdac3"
+  integrity sha512-Ajq6Sz1x7cIK3pN6KesGTah+1gnwMnx5gKl3piQlQQE/PwyJ4Mbc8is2psWYxK3RJTVeqsDaCv8ZzXLCDHMTZw==
 
 nofilter@^3.1.0:
   version "3.1.0"
