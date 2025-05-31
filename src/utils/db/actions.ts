@@ -268,12 +268,16 @@ export async function saveReward(userId: number, amount: number) {
   }
 }
 
-export async function saveCollectedWaste(reportId: number, collectorId: number, verificationResult: any) {
+export async function saveCollectedWaste(
+  taskId: number,
+  collectorId: number,
+  imageUrl: string
+) {
   try {
     const [collectedWaste] = await db
       .insert(CollectedWastes)
       .values({
-        reportId,
+        reportId: taskId,
         collectorId,
         collectionDate: new Date(),
         status: 'verified',

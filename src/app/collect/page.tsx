@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast'
 import { getWasteCollectionTasks, updateTaskStatus, saveReward, saveCollectedWaste, getUserByEmail } from '@/utils/db/actions'
 import { useRouter } from 'next/navigation'
 import { analyzeWasteImage, createImageHash, WasteVerificationResult } from '@/utils/db/gemini'
+import nodemailer from 'nodemailer'
 // import { analyzeWasteImage, WasteVerificationResult, createImageHash } from '@utils/db/gemini.ts'
 
 // Make sure to set your Gemini API key in your environment variables
@@ -198,7 +199,10 @@ export default function CollectPage() {
       if (isVerified) {
         try {
           // Save the collected waste first with the full verification result
-          await saveCollectedWaste(selectedTask.id, user.id, result)
+          await saveCollectedWaste(selectedTask.id, user.id, verificationImage)
+          
+          // Send email notification
+          await sendCollectionEmail(selectedTask, verificationImage)
           
           // Then update task status
           await updateTaskStatus(selectedTask.id, 'verified', user.id)
@@ -327,6 +331,27 @@ export default function CollectPage() {
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   )
+
+  const sendCollectionEmail = async (task: CollectionTask, imageUrl: string) => {
+    try {
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ task, imageUrl }),
+      });
+
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to send email');
+      }
+
+      console.log('Email sent successfully');
+    } catch (error) {
+      console.error('Error sending email:', error);
+    }
+  };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
